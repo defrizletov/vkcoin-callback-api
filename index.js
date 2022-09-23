@@ -1,5 +1,6 @@
 const http = require("http");
 const axios = require("axios");
+const md5 = require('js-md5');
 let pollingPort;
 
 module.exports = class VKCOIN {
@@ -25,12 +26,24 @@ module.exports = class VKCOIN {
     try {
       http.createServer((req, res) => {
         if (req.method === "POST") {
-          const body = "";
-          req.on("data", chunk => body += chunk.toString());
+          let body = "";
+          req.on("data", chunk => {
+            body += chunk.toString();
+            if(body.length > 1e6) {
+              req.connection.destroy();
+              body = "";
+            };
+          });
           req.on("end", () => {
-              res.writeHead(200, "OK");
-              res.end("OK");
-              hand(JSON.parse(body));
+            const event = JSON.parse(body);
+            const key = md5(event.id + ';' + event.fromId + ';' + event.amount + ';' + event.payload + ';' + this.key);
+            if(event.key !== key) {
+              req.connection.destroy();
+              return;
+            };
+            res.writeHead(200, "OK");
+            res.end("OK");
+            hand(event);
           });
         }
       }).listen(pollingPort);
